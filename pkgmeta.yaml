@@ -1,0 +1,10 @@
+package-as: Fishy
+ignore:
+  - assets
+  - stylua.toml
+  - pkgmeta.yaml
+  - Makefile
+
+license-output: LICENSE.md
+manual-changelog: CHANGELOG.md
+generate-changelog: false
