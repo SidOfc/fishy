@@ -1,0 +1,8 @@
+## Interface: 40400
+## Version: 0.1.0
+## Title: Fishy
+## Notes: Something smells fishy
+## Author: Sidney Liebrand
+## SavedVariablesPerCharacter: FishyCharacterData
+
+Fishy.lua
