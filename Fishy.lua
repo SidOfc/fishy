@@ -238,24 +238,41 @@ function Fishy.frames.CreateFishingPanel()
   FishingPanel.Skill = FishingPanel:CreateFontString(nil, 'OVERLAY', 'GameFontHighlightSmall')
   FishingPanel.Skill:SetPoint('TOPLEFT', FishingPanel.Name, 0, -13)
 
-  FishingPanel.Caught = CreateFrame('Frame', nil, FishingPanel)
-  FishingPanel.Caught:SetPoint('TOPLEFT', FishingPanel.Skill, 'BOTTOMLEFT', 0, -8)
+  FishingPanel.ContentContainer = CreateFrame('Frame', nil, FishingPanel)
+  FishingPanel.ContentContainer:SetPoint('TOPLEFT', FishingPanel, 'TOPLEFT', 2, -35)
+  FishingPanel.ContentContainer:SetPoint('TOPRIGHT', FishingPanel, 'TOPRIGHT', -2, -35)
+
+  FishingPanel.Content = Fishy.frames.CreateScrollableContent(FishingPanel, FishingPanel.ContentContainer)
+  FishingPanel.Content.Caught = CreateFrame('Frame', nil, FishingPanel.Content)
+  FishingPanel.Content.Caught:SetPoint('TOPLEFT', FishingPanel.Content, 'TOPLEFT', 0, 0)
+  FishingPanel.Content.Caught:SetPoint('TOPRIGHT', FishingPanel.Content, 'TOPRIGHT', -26, 0)
 
   function FishingPanel.Resize()
     local height = 0
 
-    height = height + FishingPanel.Skill:GetHeight()
-
-    for _, child in ipairs({ FishingPanel.Caught:GetChildren() }) do
+    for _, child in ipairs({ FishingPanel.Content.Caught:GetChildren() }) do
       height = height + child:GetHeight()
     end
 
-    FishingPanel.Caught:SetHeight(height)
-    FishingPanel:SetHeight(25 + height)
+    local clamped_height = math.max(57, math.min(200, height))
+
+    if math.floor(clamped_height) < math.floor(height) then
+      FishingPanel.Content.ShowScrollBar()
+      FishingPanel.Content.Caught:SetPoint('TOPRIGHT', FishingPanel.Content, 'TOPRIGHT', -26, 0)
+    else
+      FishingPanel.Content.HideScrollBar()
+      FishingPanel.Content.Caught:SetPoint('TOPRIGHT', FishingPanel.Content, 'TOPRIGHT', -8, 0)
+    end
+
+    FishingPanel.ContentContainer:SetHeight(5 + clamped_height)
+    FishingPanel.Content:SetHeight(clamped_height)
+    FishingPanel.Content:SetWidth(FishingPanel.ContentContainer:GetWidth())
+    FishingPanel.Content.Caught:SetHeight(height)
+    FishingPanel:SetHeight(42 + clamped_height)
   end
 
   function FishingPanel.Clear()
-    for _, child in ipairs({ FishingPanel.Caught:GetChildren() }) do
+    for _, child in ipairs({ FishingPanel.Content.Caught:GetChildren() }) do
       child:ClearAllPoints()
       child:SetParent(nil)
       wipe(child)
@@ -294,14 +311,14 @@ function Fishy.frames.CreateFishingPanel()
           local percentages = Fishy.GetCaughtPercentages(entry.caught)
 
           for _, catch in ipairs(entry.caught) do
-            local ItemRow = Fishy.frames.CreateCatchRow(FishingPanel.Caught, catch, percentages[catch.id])
+            local ItemRow = Fishy.frames.CreateCatchRow(FishingPanel.Content.Caught, catch, percentages[catch.id])
 
             if PreviousCatchAnchor then
               ItemRow:SetPoint('TOPLEFT', PreviousCatchAnchor, 'BOTTOMLEFT')
               ItemRow:SetPoint('TOPRIGHT', PreviousCatchAnchor, 'BOTTOMRIGHT')
             else
-              ItemRow:SetPoint('TOPLEFT', FishingPanel.Caught, 'TOPLEFT')
-              ItemRow:SetPoint('TOPRIGHT', FishingPanel.Caught, 'TOPRIGHT')
+              ItemRow:SetPoint('TOPLEFT', FishingPanel.Content.Caught, 'TOPLEFT')
+              ItemRow:SetPoint('TOPRIGHT', FishingPanel.Content.Caught, 'TOPRIGHT')
             end
 
             PreviousCatchAnchor = ItemRow
@@ -315,11 +332,10 @@ function Fishy.frames.CreateFishingPanel()
     FishingPanel.Resize()
   end
 
-  FishingPanel:Hide()
-  FishingPanel:SetSize(280, 100)
-  FishingPanel:SetPoint('TOP')
-
-  FishingPanel.Caught:SetWidth(FishingPanel:GetWidth() - 10)
+  -- FishingPanel:Hide()
+  FishingPanel:SetSize(320, 57)
+  FishingPanel:SetPoint('CENTER')
+  FishingPanel.Content.HideScrollBar()
 
   Fishy.frames.EnableMovement(FishingPanel)
   Fishy.frames.Texture(FishingPanel, 0, 0, 0, 0.6)
@@ -331,7 +347,7 @@ function Fishy.frames.CreateMainPanel()
   local MainPanel = CreateFrame('Frame', 'FishyMainPanel', UIParent, 'UIPanelDialogTemplate')
 
   MainPanel.Close = FishyMainPanelClose
-  MainPanel.Dialog = FishyMainPanelDialogBG
+  MainPanel.ContentContainer = FishyMainPanelDialogBG
 
   MainPanel:SetSize(360, 360)
   MainPanel:SetPoint('CENTER')
@@ -343,7 +359,7 @@ function Fishy.frames.CreateMainPanel()
   MainPanel.Title:ClearAllPoints()
   MainPanel.Title:SetPoint('TOPLEFT', 14, -9)
 
-  MainPanel.Content = Fishy.frames.CreateMainPanelScrollableContent(MainPanel)
+  MainPanel.Content = Fishy.frames.CreateScrollableContent(MainPanel, MainPanel.ContentContainer)
   MainPanel.Content.Entries = Fishy.frames.CreateMainPanelEntries(MainPanel)
   MainPanel.Content.Settings = Fishy.frames.CreateMainPanelSettings(MainPanel)
 
@@ -428,8 +444,8 @@ function Fishy.frames.CreateMainPanel()
       local PreviousAnchor = children[#children]
 
       if PreviousAnchor then
-        NewEntry:SetPoint('TOPLEFT', PreviousAnchor, 'BOTTOMLEFT', 0, -6)
-        NewEntry:SetPoint('TOPRIGHT', PreviousAnchor, 'BOTTOMRIGHT', 0, -6)
+        NewEntry:SetPoint('TOPLEFT', PreviousAnchor, 'BOTTOMLEFT', 0, -3)
+        NewEntry:SetPoint('TOPRIGHT', PreviousAnchor, 'BOTTOMRIGHT', 0, -3)
       else
         NewEntry:SetPoint('TOPLEFT', parent, 'TOPLEFT')
         NewEntry:SetPoint('TOPRIGHT', parent, 'TOPRIGHT')
@@ -463,22 +479,32 @@ function Fishy.frames.CreateMainPanel()
   return MainPanel
 end
 
-function Fishy.frames.CreateMainPanelScrollableContent(MainPanel)
-  local Container = CreateFrame('ScrollFrame', nil, MainPanel, 'UIPanelScrollFrameTemplate')
+function Fishy.frames.CreateScrollableContent(Parent, ContentParent)
+  local Container = CreateFrame('ScrollFrame', nil, Parent, 'UIPanelScrollFrameTemplate')
   local Content = CreateFrame('Frame', nil, Container)
 
   Content.Scroll = Container
   Content.fishy_data_id = 'content'
-  Content:SetWidth(MainPanel:GetWidth() - 42)
+  Content:SetWidth(ContentParent:GetWidth() - 24)
 
   Container:SetScrollChild(Content)
   Container:SetClipsChildren(true)
-  Container:SetPoint('TOPLEFT', MainPanel.Dialog, 'TOPLEFT', 4, -4)
-  Container:SetPoint('BOTTOMRIGHT', MainPanel.Dialog, 'BOTTOMRIGHT', -1, 1)
+  Container:SetPoint('TOPLEFT', ContentParent, 'TOPLEFT', 4, -4)
+  Container:SetPoint('BOTTOMRIGHT', ContentParent, 'BOTTOMRIGHT', -1, 1)
 
   Container.ScrollBar:ClearAllPoints()
   Container.ScrollBar:SetPoint('TOPLEFT', Container, 'TOPRIGHT', -12, -17)
   Container.ScrollBar:SetPoint('BOTTOMRIGHT', Container, 'BOTTOMRIGHT', -4, 16)
+
+  function Content.ShowScrollBar()
+    Container.ScrollBar:SetPoint('TOPLEFT', Container, 'TOPRIGHT', -12, -17)
+    Container.ScrollBar:SetPoint('BOTTOMRIGHT', Container, 'BOTTOMRIGHT', -4, 16)
+  end
+
+  function Content.HideScrollBar()
+    Container.ScrollBar:SetPoint('TOPLEFT', Container, 'TOPRIGHT', 24, -17)
+    Container.ScrollBar:SetPoint('BOTTOMRIGHT', Container, 'BOTTOMRIGHT', 16, 16)
+  end
 
   return Content
 end
@@ -655,8 +681,8 @@ function Fishy.frames.CreateMainPanelEntries(MainPanel)
     Entry = Fishy.frames.CreateEntry(Container, entry)
 
     if PreviousAnchor then
-      Entry:SetPoint('TOPLEFT', PreviousAnchor, 'BOTTOMLEFT', 0, -6)
-      Entry:SetPoint('TOPRIGHT', PreviousAnchor, 'BOTTOMRIGHT', 0, -6)
+      Entry:SetPoint('TOPLEFT', PreviousAnchor, 'BOTTOMLEFT', 0, -3)
+      Entry:SetPoint('TOPRIGHT', PreviousAnchor, 'BOTTOMRIGHT', 0, -3)
     else
       Entry:SetPoint('TOPLEFT', Container, 'TOPLEFT')
       Entry:SetPoint('TOPRIGHT', Container, 'TOPRIGHT')
@@ -767,7 +793,7 @@ function Fishy.frames.CreateEntry(parent, entry)
   Entry.Name:SetPoint('TOPLEFT', Entry.Toggle, 'TOPRIGHT', 4, -2)
 
   Entry.Content.fishy_data_id = 'content'
-  Entry.Content:SetPoint('TOPLEFT', Entry.Toggle, 'BOTTOMRIGHT', 4, -2)
+  Entry.Content:SetPoint('TOPLEFT', Entry.Toggle, 'BOTTOMRIGHT', 4, 0)
   Entry.Content:SetPoint('TOPRIGHT', Entry, 'TOPRIGHT')
   Entry.Content:Hide()
   Entry.Content.Resize = Entry.Resize
@@ -825,21 +851,24 @@ end
 function Fishy.frames.CreateCatchRow(parent, catch, percentage)
   local ItemRow = CreateFrame('Frame', nil, parent)
 
-  ItemRow.fishy_data_id = catch.id
-  ItemRow:SetHeight(16)
-
-  ItemRow.Name = ItemRow:CreateFontString(nil, 'OVERLAY', 'GameFontHighlight')
-  ItemRow.Count = ItemRow:CreateFontString(nil, 'OVERLAY', 'GameFontNormal')
-  ItemRow.Percent = ItemRow:CreateFontString(nil, 'OVERLAY', 'GameFontGreen')
+  ItemRow.Name = ItemRow:CreateFontString(nil, 'OVERLAY', 'GameFontHighlightSmall')
+  ItemRow.Count = ItemRow:CreateFontString(nil, 'OVERLAY', 'GameFontNormalSmall')
+  ItemRow.Percent = ItemRow:CreateFontString(nil, 'OVERLAY', 'GameFontGreenSmall')
 
   ItemRow.Name:SetText(catch.name)
-  ItemRow.Name:SetPoint('TOPLEFT', ItemRow, 'TOPLEFT')
+  ItemRow.Name:SetPoint('LEFT', ItemRow, 'LEFT')
 
   ItemRow.Count:SetText(catch.count)
-  ItemRow.Count:SetPoint('TOPRIGHT', ItemRow, 'TOPRIGHT', -60, 0)
+  ItemRow.Count:SetPoint('RIGHT', ItemRow, 'RIGHT', -50, 0)
 
   ItemRow.Percent:SetText(string.format('%2.2f%%', percentage))
-  ItemRow.Percent:SetPoint('TOPRIGHT', ItemRow, 'TOPRIGHT')
+  ItemRow.Percent:SetPoint('RIGHT', ItemRow, 'RIGHT')
+
+  ItemRow.fishy_data_id = catch.id
+  ItemRow:SetHeight(
+    16,
+    math.max(ItemRow.Name:GetStringHeight(), ItemRow.Count:GetStringHeight(), ItemRow.Percent:GetStringHeight())
+  )
 
   return ItemRow
 end
