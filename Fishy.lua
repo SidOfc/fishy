@@ -96,6 +96,78 @@ function Fishy.FindElement(frame, path)
   end
 end
 
+function Fishy.GetFishingLoot()
+  if IsFishingLoot() then
+    local items = {}
+
+    for idx, loot in ipairs(GetLootInfo()) do
+      local link = GetLootSlotLink(idx)
+      local bind_type = link and select(14, C_Item.GetItemInfo(link))
+      local id = link and tonumber(string.match(link, 'item:(%d+)'))
+
+      if id and LootSlotHasItem(idx) then
+        items[#items + 1] = { quantity = loot.quantity, bind_type = bind_type, item = { id = id, name = loot.item } }
+      end
+    end
+
+    return items
+  end
+end
+
+function Fishy.GetInventory()
+  local items = {}
+  local free_slots = 0
+
+  for bag = 0, 4 do
+    local slots = C_Container.GetContainerNumSlots(bag)
+
+    free_slots = free_slots + C_Container.GetContainerNumFreeSlots(bag)
+
+    for slot = 1, slots do
+      local container_item_info = C_Container.GetContainerItemInfo(bag, slot)
+      local id = container_item_info and container_item_info.itemID
+      local stack_count = container_item_info and container_item_info.stackCount
+      local item_info = id and { C_Item.GetItemInfo(id) }
+      local max_stack_count = item_info and item_info[8]
+
+      if id and stack_count and max_stack_count then
+        items[#items + 1] = { id = id, stack_count = stack_count, max_stack_count = max_stack_count }
+      end
+    end
+  end
+
+  return items, free_slots
+end
+
+function Fishy.CanAutoLootEverything()
+  local loot_items = Fishy.GetFishingLoot()
+  local inventory_items, free_slots = Fishy.GetInventory()
+
+  if free_slots < #loot_items then
+    local required_slots = #loot_items - free_slots
+
+    for _, catch in ipairs(loot_items) do
+      for _, item in ipairs(inventory_items) do
+        if item.id == catch.item.id then
+          if (item.stack_count + catch.quantity) <= item.max_stack_count then
+            required_slots = required_slots - 1
+
+            break
+          end
+        end
+      end
+
+      if required_slots <= 0 then
+        return true
+      end
+    end
+
+    return false
+  end
+
+  return true
+end
+
 function Fishy.GetCaughtPercentages(caught)
   local total = 0
   local result = {}
@@ -135,6 +207,10 @@ function Fishy.Print(...)
   local msg = Fishy.Color(text, 0.2, 0.8, 0.2)
 
   print(string.format('%s %s', addon, msg))
+end
+
+function Fishy.Warn(label, text)
+  Fishy.Print(Fishy.Color(label, 1, 1, 0), text)
 end
 
 function Fishy.character.SortCaught(entry)
@@ -1003,7 +1079,7 @@ end
 
 function Fishy.character.HandleLoot()
   hooksecurefunc(LootFrame, 'Show', function(self)
-    if C_CVar.GetCVarBool('autoLootDefault') or (Fishy.character.GetSetting('auto_loot') and IsFishingLoot()) then
+    if IsFishingLoot() and Fishy.character.GetSetting('auto_loot') and Fishy.CanAutoLootEverything() then
       self:Hide()
     end
   end)
@@ -1045,30 +1121,21 @@ function Fishy.events.global.ADDON_LOADED(name)
 end
 
 function Fishy.events.global.LOOT_OPENED()
-  if IsFishingLoot() then
+  local loot_items = Fishy.GetFishingLoot()
+
+  if loot_items then
     local location = Fishy.character.LocationInfo()
     local auto_loot = Fishy.character.GetSetting('auto_loot') and not C_CVar.GetCVarBool('autoLootDefault')
 
-    for idx, loot in ipairs(GetLootInfo()) do
-      local link = GetLootSlotLink(idx)
-      local bind_type = link and select(14, C_Item.GetItemInfo(link))
-      local id = link and tonumber(string.match(link, 'item:(%d+)'))
-
-      if LootSlotHasItem(idx) then
-        if id then
-          local catch = { quantity = loot.quantity, item = { id = id, name = loot.item } }
-
-          Fishy.state.UpdateCaught(catch, location)
-          Fishy.character.UpdateCaught(catch, location)
-        end
-      end
+    for idx, catch in ipairs(loot_items) do
+      Fishy.state.UpdateCaught(catch, location)
+      Fishy.character.UpdateCaught(catch, location)
 
       if auto_loot then
         LootSlot(idx)
 
-        if bind_type == 1 then
+        if catch.bind_type == 1 then
           ConfirmLootSlot(idx)
-          Fishy.Print('AUTO_CONFIRM_LOOT', loot.item)
         end
       end
     end
