@@ -332,7 +332,7 @@ function Fishy.frames.CreateFishingPanel()
     FishingPanel.Resize()
   end
 
-  -- FishingPanel:Hide()
+  FishingPanel:Hide()
   FishingPanel:SetSize(320, 57)
   FishingPanel:SetPoint('CENTER')
   FishingPanel.Content.HideScrollBar()
