@@ -422,8 +422,10 @@ end
 function Fishy.frames.CreateMainPanel()
   local MainPanel = CreateFrame('Frame', 'FishyMainPanel', UIParent, 'UIPanelDialogTemplate')
 
+  ---@diagnostic disable: undefined-global
   MainPanel.Close = FishyMainPanelClose
   MainPanel.ContentContainer = FishyMainPanelDialogBG
+  ---@diagnostic enable: undefined-global
 
   MainPanel:SetSize(360, 360)
   MainPanel:SetPoint('CENTER')
@@ -623,6 +625,11 @@ end
 function Fishy.frames.Slider(parent, setting, options, on_update)
   local Slider = CreateFrame('Slider', setting, parent, 'OptionsSliderTemplate')
   local value = Fishy.character.GetSetting(setting)
+
+  if type(value) ~= 'number' then
+    value = options.min or 0
+  end
+
   local min = math.min(value, options.min or 0)
   local max = math.max(value, options.max or 100)
   local label = Fishy.GetSettingLabel(setting)
@@ -816,6 +823,7 @@ function Fishy.frames.CreateEntry(parent, entry)
 
   Entry.fishy_data_id = entry.id
   Entry:SetHeight(16)
+  Fishy.character.SortCaught(entry)
 
   function Entry.Resize()
     local caught_height = 0
@@ -918,7 +926,6 @@ function Fishy.frames.CreateEntry(parent, entry)
     PreviousEntryAnchor = ChildEntry
   end
 
-  Fishy.character.SortCaught(entry, Entry)
   Entry.Resize()
 
   return Entry
