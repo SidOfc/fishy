@@ -7,4 +7,3 @@ ignore:
 
 license-output: LICENSE.md
 manual-changelog: CHANGELOG.md
-generate-changelog: false
