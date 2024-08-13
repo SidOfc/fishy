@@ -14,17 +14,21 @@ local Fishy = {
     },
   },
   setting_details = {
+    show_streak = {
+      label = 'Show Streak',
+      tooltip = 'Shows how many times the same fish was caught consecutively in the fishing tracker.',
+    },
     auto_loot = {
       label = 'Auto Loot',
       tooltip = 'Automatically loot while fishing.',
     },
     auto_hide = {
       label = 'Auto Hide',
-      tooltip = 'Automatically hide the fishing information panel.',
+      tooltip = 'Automatically hide the fishing tracker.',
     },
     auto_hide_delay = {
       label = 'Auto Hide Delay',
-      tooltip = 'Delay in seconds after which the fishing information panel will be hidden.',
+      tooltip = 'Delay in seconds after which the fishing tracker will be hidden.',
     },
   },
   lures = {
@@ -49,8 +53,10 @@ local Fishy = {
   character = {
     data = {},
     data_defaults = {
+      streak = nil,
       entries = {},
       settings = {
+        show_streak = false,
         auto_loot = false,
         auto_hide = true,
         auto_hide_delay = 10,
@@ -389,6 +395,15 @@ function Fishy.frames.CreateFishingPanel()
           for _, catch in ipairs(entry.caught) do
             local ItemRow = Fishy.frames.CreateCatchRow(FishingPanel.Content.Caught, catch, percentages[catch.id])
 
+            if
+              Fishy.character.GetSetting('show_streak')
+              and Fishy.character.data.streak
+              and Fishy.character.data.streak.catch.item.id == catch.id
+              and Fishy.character.data.streak.count > 1
+            then
+              Fishy.frames.CreateStreakIndicator(ItemRow)
+            end
+
             if PreviousCatchAnchor then
               ItemRow:SetPoint('TOPLEFT', PreviousCatchAnchor, 'BOTTOMLEFT')
               ItemRow:SetPoint('TOPRIGHT', PreviousCatchAnchor, 'BOTTOMRIGHT')
@@ -715,10 +730,14 @@ function Fishy.frames.CreateMainPanelSettings(MainPanel)
 
   Container.AutoLootCheckBox = Fishy.frames.Checkbox(Container, 'auto_loot')
   Container.AutoLootCheckBox:SetPoint('TOPLEFT', Container, 'TOPLEFT', 10, -10)
+  Container.ShowStreakCheckBox = Fishy.frames.Checkbox(Container, 'show_streak', function()
+    Fishy.frames.fishing.Update()
+  end)
+  Container.ShowStreakCheckBox:SetPoint('TOPLEFT', Container.AutoLootCheckBox, 'BOTTOMLEFT', 0, -10)
   Container.AutoHideCheckBox = Fishy.frames.Checkbox(Container, 'auto_hide', function(checked)
     Container.AutoHideSlider.SetDisabled(not checked)
   end)
-  Container.AutoHideCheckBox:SetPoint('TOPLEFT', Container.AutoLootCheckBox, 'BOTTOMLEFT', 0, -10)
+  Container.AutoHideCheckBox:SetPoint('TOPLEFT', Container.ShowStreakCheckBox, 'BOTTOMLEFT', 0, -10)
   Container.AutoHideSlider = Fishy.frames.Slider(Container, 'auto_hide_delay', { min = 3, max = 120, width = 200 })
   Container.AutoHideSlider:SetPoint('TOPLEFT', Container.AutoHideCheckBox, 'BOTTOMLEFT', 5, -30)
   Container.AutoHideSlider.SetDisabled(not Fishy.character.GetSetting('auto_hide'))
@@ -931,6 +950,17 @@ function Fishy.frames.CreateEntry(parent, entry)
   return Entry
 end
 
+function Fishy.frames.CreateStreakIndicator(anchor)
+  local Container = CreateFrame('Frame', nil, anchor)
+  Container.Name = Container:CreateFontString(nil, 'OVERLAY', 'GameFontHighlightSmall')
+
+  Fishy.frames.Texture(Container, 0.7, 0.2, 0)
+  Container:SetSize(Container.Name:GetWidth() + 12, Container.Name:GetHeight() + 12)
+  Container:SetPoint('LEFT', anchor.Name, 'RIGHT', 3, 0)
+  Container.Name:SetPoint('CENTER', Container, 'CENTER')
+  Container.Name:SetText(Fishy.character.data.streak.count)
+end
+
 function Fishy.frames.CreateCatchRow(parent, catch, percentage)
   local ItemRow = CreateFrame('Frame', nil, parent)
 
@@ -1038,15 +1068,16 @@ function Fishy.CreateCatchData(item, caught)
   end
 end
 
-function Fishy.UpdateEntryCaughtData(name, entries, loot)
+function Fishy.UpdateEntryCaughtData(name, entries, catch)
   if name then
     local entry = Fishy.FindEntryData(name, entries) or Fishy.CreateEntryData(name, entries)
 
     if entry then
-      local catch = Fishy.FindCatchData(loot.item, entry.caught) or Fishy.CreateCatchData(loot.item, entry.caught)
+      local catch_data = Fishy.FindCatchData(catch.item, entry.caught)
+        or Fishy.CreateCatchData(catch.item, entry.caught)
 
-      if catch then
-        catch.count = catch.count + loot.quantity
+      if catch_data then
+        catch_data.count = catch_data.count + catch.quantity
       end
 
       return entry
@@ -1054,14 +1085,24 @@ function Fishy.UpdateEntryCaughtData(name, entries, loot)
   end
 end
 
-function Fishy.state.UpdateCaught(loot, location)
+function Fishy.state.UpdateStreak(catch)
+  if not Fishy.character.data.streak or Fishy.character.data.streak.catch.item.id ~= catch.item.id then
+    Fishy.character.data.streak = { catch = catch, count = 1 }
+  else
+    Fishy.character.data.streak.count = Fishy.character.data.streak.count + 1
+  end
+
+  Fishy.frames.fishing.Update()
+end
+
+function Fishy.state.UpdateCaught(catch, location)
   local entries = Fishy.state.entries
 
-  if loot and location then
+  if catch and location then
     local map_name = location.map_name
     local zone_name = location.zone_name
-    local map_entry = map_name and Fishy.UpdateEntryCaughtData(map_name, entries, loot)
-    local zone_entry = map_entry and Fishy.UpdateEntryCaughtData(zone_name, map_entry.entries, loot)
+    local map_entry = map_name and Fishy.UpdateEntryCaughtData(map_name, entries, catch)
+    local zone_entry = map_entry and Fishy.UpdateEntryCaughtData(zone_name, map_entry.entries, catch)
 
     Fishy.character.SortCaught(map_entry)
     Fishy.character.SortCaught(zone_entry)
@@ -1069,14 +1110,14 @@ function Fishy.state.UpdateCaught(loot, location)
   end
 end
 
-function Fishy.character.UpdateCaught(loot, location)
+function Fishy.character.UpdateCaught(catch, location)
   local entries = Fishy.character.data.entries
 
-  if loot and location then
+  if catch and location then
     local map_name = location.map_name
     local zone_name = location.zone_name
-    local map_entry = map_name and Fishy.UpdateEntryCaughtData(map_name, entries, loot)
-    local zone_entry = map_entry and Fishy.UpdateEntryCaughtData(zone_name, map_entry.entries, loot)
+    local map_entry = map_name and Fishy.UpdateEntryCaughtData(map_name, entries, catch)
+    local zone_entry = map_entry and Fishy.UpdateEntryCaughtData(zone_name, map_entry.entries, catch)
 
     Fishy.character.SortCaught(map_entry)
     Fishy.character.SortCaught(zone_entry)
@@ -1135,6 +1176,7 @@ function Fishy.events.global.LOOT_OPENED()
     local auto_loot = Fishy.character.GetSetting('auto_loot') and not C_CVar.GetCVarBool('autoLootDefault')
 
     for idx, catch in ipairs(loot_items) do
+      Fishy.state.UpdateStreak(catch)
       Fishy.state.UpdateCaught(catch, location)
       Fishy.character.UpdateCaught(catch, location)
 
