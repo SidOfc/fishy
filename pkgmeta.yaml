@@ -4,6 +4,9 @@ ignore:
   - stylua.toml
   - pkgmeta.yaml
   - Makefile
+  - CHANGELOG.md
+  - LICENSE.md
+  - README.md
 
 license-output: LICENSE.md
 manual-changelog: CHANGELOG.md
