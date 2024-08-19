@@ -2,6 +2,10 @@
 
 _Dates are in **DD-MM-YYYY** format._
 
+## v1.1.1 - 19-08-2024
+
+- Support showing multiple streaks at the same time
+
 ## v1.1.0 - 13-08-2024
 
 - Implement setting to show catch streaks
