@@ -53,7 +53,7 @@ local Fishy = {
   character = {
     data = {},
     data_defaults = {
-      streak = nil,
+      streaks = {},
       entries = {},
       settings = {
         show_streak = false,
@@ -394,14 +394,10 @@ function Fishy.frames.CreateFishingPanel()
 
           for _, catch in ipairs(entry.caught) do
             local ItemRow = Fishy.frames.CreateCatchRow(FishingPanel.Content.Caught, catch, percentages[catch.id])
+            local streak = Fishy.character.GetStreak(catch.id)
 
-            if
-              Fishy.character.GetSetting('show_streak')
-              and Fishy.character.data.streak
-              and Fishy.character.data.streak.catch.item.id == catch.id
-              and Fishy.character.data.streak.count > 1
-            then
-              Fishy.frames.CreateStreakIndicator(ItemRow)
+            if streak and streak.count > 1 and Fishy.character.GetSetting('show_streak') then
+              Fishy.frames.CreateStreakIndicator(ItemRow, streak)
             end
 
             if PreviousCatchAnchor then
@@ -950,7 +946,7 @@ function Fishy.frames.CreateEntry(parent, entry)
   return Entry
 end
 
-function Fishy.frames.CreateStreakIndicator(anchor)
+function Fishy.frames.CreateStreakIndicator(anchor, streak)
   local Container = CreateFrame('Frame', nil, anchor)
   Container.Name = Container:CreateFontString(nil, 'OVERLAY', 'GameFontHighlightSmall')
 
@@ -958,7 +954,7 @@ function Fishy.frames.CreateStreakIndicator(anchor)
   Container:SetSize(Container.Name:GetWidth() + 12, Container.Name:GetHeight() + 12)
   Container:SetPoint('LEFT', anchor.Name, 'RIGHT', 3, 0)
   Container.Name:SetPoint('CENTER', Container, 'CENTER')
-  Container.Name:SetText(Fishy.character.data.streak.count)
+  Container.Name:SetText(streak.count)
 end
 
 function Fishy.frames.CreateCatchRow(parent, catch, percentage)
@@ -996,11 +992,19 @@ function Fishy.Merge(tbl1, tbl2)
   return tbl1
 end
 
+function Fishy.character.ConvertStreak(settings)
+  if type(settings.streak) == 'table' and type(settings.streaks) == 'table' and #settings.streaks == 0 then
+    settings.streaks[#settings.streaks + 1] = settings.streak
+    settings.streak = nil
+  end
+end
+
 function Fishy.character.GetData()
   FishyCharacterData = FishyCharacterData or {}
 
   Fishy.Merge(FishyCharacterData, Fishy.character.data_defaults)
   Fishy.Merge(FishyCharacterData.settings, Fishy.character.data_defaults.settings)
+  Fishy.character.ConvertStreak(FishyCharacterData.settings)
 
   return FishyCharacterData
 end
@@ -1085,13 +1089,29 @@ function Fishy.UpdateEntryCaughtData(name, entries, catch)
   end
 end
 
-function Fishy.state.UpdateStreak(catch)
-  if not Fishy.character.data.streak or Fishy.character.data.streak.catch.item.id ~= catch.item.id then
-    Fishy.character.data.streak = { catch = catch, count = 1 }
-  else
-    Fishy.character.data.streak.count = Fishy.character.data.streak.count + 1
+function Fishy.character.GetStreak(id)
+  for _, streak in ipairs(Fishy.character.data.streaks) do
+    if streak.catch.item.id == id then
+      return streak
+    end
+  end
+end
+
+function Fishy.character.UpdateStreaks(loot_items)
+  local streaks = {}
+
+  for _, catch in ipairs(loot_items) do
+    local streak = Fishy.character.GetStreak(catch.item.id)
+
+    if streak then
+      streak.count = streak.count + 1
+      streaks[#streaks + 1] = streak
+    else
+      streaks[#streaks + 1] = { catch = catch, count = 1 }
+    end
   end
 
+  Fishy.character.data.streaks = streaks
   Fishy.frames.fishing.Update()
 end
 
@@ -1176,7 +1196,6 @@ function Fishy.events.global.LOOT_OPENED()
     local auto_loot = Fishy.character.GetSetting('auto_loot') and not C_CVar.GetCVarBool('autoLootDefault')
 
     for idx, catch in ipairs(loot_items) do
-      Fishy.state.UpdateStreak(catch)
       Fishy.state.UpdateCaught(catch, location)
       Fishy.character.UpdateCaught(catch, location)
 
@@ -1188,6 +1207,8 @@ function Fishy.events.global.LOOT_OPENED()
         end
       end
     end
+
+    Fishy.character.UpdateStreaks(loot_items)
   end
 end
 
