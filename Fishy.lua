@@ -245,14 +245,9 @@ end
 function Fishy.frames.EnableMovement(frame)
   frame:EnableMouse(true)
   frame:SetMovable(true)
-
-  frame:SetScript('OnMouseDown', function(self)
-    self:StartMoving()
-  end)
-
-  frame:SetScript('OnMouseUp', function(self)
-    self:StopMovingOrSizing()
-  end)
+  frame:RegisterForDrag('LeftButton')
+  frame:SetScript('OnDragStart', frame.StartMoving)
+  frame:SetScript('OnDragStop', frame.StopMovingOrSizing)
 end
 
 function Fishy.character.FishingSkillInfo()
@@ -442,7 +437,7 @@ function Fishy.frames.CreateMainPanel()
   MainPanel:SetPoint('CENTER')
 
   MainPanel.Close:ClearAllPoints()
-  MainPanel.Close:SetPoint('TOPRIGHT', 2, 1)
+  MainPanel.Close:SetPoint('TOPRIGHT', -3, -4)
 
   MainPanel.Title:SetText('Fishy')
   MainPanel.Title:ClearAllPoints()
@@ -457,6 +452,16 @@ function Fishy.frames.CreateMainPanel()
     { name = 'Stats', container = MainPanel.Content.Entries },
     { name = 'Settings', container = MainPanel.Content.Settings },
   })
+
+  function MainPanel.Clear()
+    for _, child in ipairs({ MainPanel.Content.Entries:GetChildren() }) do
+      child:ClearAllPoints()
+      child:SetParent(nil)
+      wipe(child)
+    end
+
+    pcall(MainPanel.Content.Entries.Resize)
+  end
 
   function MainPanel.Update(map_entry, zone_entry)
     local entries_container = Fishy.frames.main.Content.Entries
@@ -544,25 +549,7 @@ function Fishy.frames.CreateMainPanel()
     end
   end
 
-  function MainPanel.IsCurrentTabContainer(Container)
-    local id = PanelTemplates_GetSelectedTab(MainPanel)
-    local Tab = MainPanel.Tabs and MainPanel.Tabs[id]
-
-    return Tab and Tab.Content == Container
-  end
-
-  function MainPanel.Clear()
-    for _, child in ipairs({ MainPanel.Content.Entries:GetChildren() }) do
-      child:ClearAllPoints()
-      child:SetParent(nil)
-      wipe(child)
-    end
-
-    pcall(MainPanel.Content.Entries.Resize)
-  end
-
   Fishy.frames.SetSelectedTab(MainPanel, 1)
-
   MainPanel:Hide()
 
   return MainPanel
@@ -575,6 +562,7 @@ function Fishy.frames.CreateScrollableContent(Parent, ContentParent)
   Content.Scroll = Container
   Content.fishy_data_id = 'content'
   Content:SetWidth(ContentParent:GetWidth() - 24)
+  Content:SetHeight(ContentParent:GetHeight())
 
   Container:SetScrollChild(Content)
   Container:SetClipsChildren(true)
@@ -757,9 +745,12 @@ end
 function Fishy.frames.CreateMainPanelEntries(MainPanel)
   local PreviousAnchor
   local Container = CreateFrame('Frame', nil, MainPanel.Content)
+  local parent = Container:GetParent()
 
-  Container:SetPoint('TOPLEFT', MainPanel.Content, 'TOPLEFT')
-  Container:SetPoint('TOPRIGHT', MainPanel.Content, 'TOPRIGHT')
+  Container:SetPoint('TOPLEFT', parent, 'TOPLEFT')
+  Container:SetPoint('TOPRIGHT', parent, 'TOPRIGHT')
+  Container:SetWidth(parent:GetWidth())
+  Container:SetHeight(parent:GetHeight())
   Container.fishy_data_id = 'entries'
 
   function Container.Resize()
@@ -789,29 +780,31 @@ function Fishy.frames.CreateMainPanelEntries(MainPanel)
     PreviousAnchor = Entry
   end
 
+  pcall(Container.Resize)
+
   return Container
 end
 
-function Fishy.frames.SetSelectedTab(frame, id)
-  local SelectedTab = frame.Tabs[id]
-
-  PanelTemplates_SetTab(frame, id)
+function Fishy.frames.SetSelectedTab(frame, idx)
+  local SelectedTab = frame.Tabs[idx]
 
   for _, Tab in ipairs(frame.Tabs) do
+    PanelTemplates_DeselectTab(Tab)
     Tab.Content:Hide()
+    Tab:Enable()
   end
 
+  PanelTemplates_SelectTab(SelectedTab)
+  SelectedTab:Disable()
   SelectedTab.Content:Show()
   pcall(SelectedTab.Content.Resize)
 end
 
 function Fishy.frames.CreateMainPanelTabs(frame, tabs)
-  frame.numTabs = #tabs
   frame.Tabs = {}
-  PanelTemplates_SetNumTabs(frame, #tabs)
 
   for idx, tab_data in ipairs(tabs) do
-    local Tab = CreateFrame('Button', tab_data.name, frame, 'CharacterFrameTabButtonTemplate')
+    local Tab = CreateFrame('Button', tab_data.name, frame, 'PanelTabButtonTemplate')
 
     Tab.Content = tab_data.container
 
@@ -820,16 +813,15 @@ function Fishy.frames.CreateMainPanelTabs(frame, tabs)
     Tab:SetScript('OnClick', function()
       Fishy.frames.SetSelectedTab(frame, idx)
     end)
+
     Tab.Content:Hide()
 
     if idx == 1 then
-      Tab:SetPoint('TOPLEFT', frame, 'BOTTOMLEFT', 15, 7)
+      Tab:SetPoint('TOPLEFT', frame, 'BOTTOMLEFT', 12, 6)
     else
       local PreviousTabAnchor = frame.Tabs[idx - 1]
-      Tab:SetPoint('TOPLEFT', PreviousTabAnchor, 'TOPRIGHT', -15, 0)
+      Tab:SetPoint('TOPLEFT', PreviousTabAnchor, 'TOPRIGHT', 0, 0)
     end
-
-    frame.Tabs[#frame.Tabs + 1] = Tab
   end
 end
 
